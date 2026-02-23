@@ -38,7 +38,7 @@ def _default_impl(context: AnalysisContext) -> list[Provider]:
     # Wrap the user-provided command arguments.
     args = cmd_args(context.attrs.command)
     # Combine args with the hidden artifact references so Buck2 tracks all inputs.
-    hidden = cmd_args(args, "--", hidden = hidden)
+    hidden = cmd_args("--", args, hidden = hidden)
     # Render the full build command with paths relative to the project root.
     command = cmd_args(hidden, relative_to = (log, depth))
     # Persist the command to the log file for reproducibility.
