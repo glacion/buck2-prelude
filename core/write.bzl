@@ -1,19 +1,26 @@
-"""Provides the write rule for writing content to a file."""
+"""provides the write rule for writing content to a file"""
 
-load("//core:path.bzl", "path")
+load("@prelude//core/path.bzl", "path")
 
 def _write_impl(context: AnalysisContext) -> list[Provider]:
-    # Declare the output artifact at the package-relative path.
+    # declare the output artifact at the package-relative path
+    # package scoping keeps generated file locations deterministic per target
     output = context.actions.declare_output(path.join(context.label.package, context.attrs.path))
-    # Write the content to the output file, optionally making it executable.
+
+    # write the content to the output file, optionally making it executable
+    # `allow_args = True` permits cmd_args/artifact expansion in generated content
     context.actions.write(output, context.attrs.content, is_executable = context.attrs.executable, allow_args = True)
+
+    # return defaultinfo with the written file as the default output
+    # downstream rules can consume this artifact via normal default output wiring
+    return [DefaultInfo(default_output = output)]
 
 write = rule(
     impl = _write_impl,
-    doc = "Writes content to a file.",
+    doc = "writes content to a file",
     attrs = {
-        "content": attrs.arg(doc = "The content to write."),
-        "executable": attrs.bool(default = False, doc = "Whether the output file should be executable."),
-        "path": attrs.arg(doc = "The output path."),
+        "content": attrs.arg(doc = "the content to write"),
+        "executable": attrs.bool(default = False, doc = "whether the output file should be executable"),
+        "path": attrs.string(doc = "the output path"),
     },
 )

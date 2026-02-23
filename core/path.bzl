@@ -8,7 +8,7 @@ path separators (forward slash, "/"); they do not handle Windows-style paths
 with backslash separators or drive letters.
 """
 
-## ---------------------------------------------------------------------------------------------------------------------
+
 
 def _basename(p: str) -> str:
     """Returns the basename (i.e., the file portion) of a path.
@@ -118,10 +118,10 @@ def _normalize(path: str) -> str:
             continue
         if component == "..":
             if new_components and new_components[-1] != "..":
-                # Only pop the last segment if it isn't another "..".
+                # only pop the last segment if it isn't another ".."
                 new_components.pop()
             elif is_relative:
-                # Preserve leading ".." segments for relative paths.
+                # preserve leading ".." segments for relative paths
                 new_components.append(component)
         else:
             new_components.append(component)

@@ -1,11 +1,11 @@
-load("//core:alias.bzl", _alias = "alias")
-load("//core:default.bzl", _default = "default")
-load("//core:export.bzl", _export = "export")
-load("//core:http.bzl", _http = "http")
-load("//core:json.bzl", _json = "json")
-load("//core:shell.bzl", _shell = "shell")
-load("//core:test.bzl", _test = "test")
-load("//core:write.bzl", _write = "write")
+load("@prelude//core/alias.bzl", _alias = "alias")
+load("@prelude//core/default.bzl", _default = "default")
+load("@prelude//core/export.bzl", _export = "export")
+load("@prelude//core/http.bzl", _http = "http")
+load("@prelude//core/json.bzl", _json = "json")
+load("@prelude//core/shell.bzl", _shell = "shell")
+load("@prelude//core/test.bzl", _test = "test")
+load("@prelude//core/write.bzl", _write = "write")
 
 alias = _alias
 default = _default

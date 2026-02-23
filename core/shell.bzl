@@ -1,65 +1,92 @@
-"""Provides the shell rule for executing commands via a shell interpreter."""
+"""provides the shell rule for executing commands via a shell interpreter"""
 
-load("//core:path.bzl", "path")
+load("@prelude//core/path.bzl", "path")
 
 def _shell_impl(context: AnalysisContext) -> list[Provider]:
-    # Declare the log file used to persist the command and as a fallback default output.
-    log = context.actions.declare_output(path.join(context.label.package, context.attrs.context, context.attrs._log))
-    # Select the file installation strategy based on the mode attribute.
+    # declare the log artifact for cwd resolution by `env -C`, scoping it under
+    # `package/context/_log` via `path.join` to normalize separators and collapse
+    # redundant components (e.g. `./`); inlined since shell does not reuse the path
+    log = context.actions.declare_output(path.join(context.label.package, context.attrs.context, context.attrs._log)).as_output()
+
+    # select the file installation strategy based on the mode attribute
     install = context.actions.copy_file if context.attrs.mode == "copy" else context.actions.symlink_file
-    # Gather the default outputs of all declared dependencies.
+
+    # gather dependency outputs from defaultinfo for hidden input tracking
+    # `default_outputs` is the supported aggregation surface in this buck2 api
+    # including these artifacts keeps action keys sensitive to dependency changes
     dependencies = [
         output
         for dependency in context.attrs.dependencies
         for output in dependency[DefaultInfo].default_outputs
     ]
 
-    # Declare output artifacts for each expected output file.
+    # declare output artifacts for each expected output file
+    # `path.join(package, context, output)` keeps outputs scoped under the
+    # target's package/context directory and normalizes separators/components
+    # (for example removing redundant `./`) before declaration
     outputs = [
         context.actions.declare_output(path.join(context.label.package, context.attrs.context, output))
         for output in context.attrs.outputs
     ]
 
-    # Install source files into the build context, preserving package-relative paths.
+    # install source files into the build context while preserving layout semantics:
+    # - for source files (`is_source = True`), prefix with `context.label.package` so files
+    #   keep their package-relative directory structure
+    # - for dependency outputs (`is_source = False`), keep the producer-provided short_path
+    #   so generated artifacts preserve their declared output structure
     sources = [
         install(path.join(context.label.package, source.short_path), source) if source.is_source else install(source.short_path, source)
         for source in context.attrs.sources
     ]
 
-    # Bundle dependencies, sources, and output declarations for the build action.
+    # bundle dependencies, sources, and output declarations as hidden inputs
+    # these must be present in the action key even when not rendered on argv,
+    # otherwise buck2 can miss invalidation when dependencies, sources, or
+    # declared outputs change and incorrectly reuse stale results
     hidden = dependencies + sources + [output.as_output() for output in outputs]
-    # Format environment variables as KEY=VALUE pairs for the env command.
-    env_args = [cmd_args(key, value, delimiter = "=") for key, value in context.attrs.environment.items()]
-    # Compute the log path and its depth to resolve the project root via parent traversal.
-    log_path = path.join(context.label.package, context.attrs.context, context.attrs._log)
-    depth = path.depth(log_path)
-    # Build the env prefix that sets environment variables and changes to the project root.
-    env = cmd_args("env", env_args, "-C", log, parent = depth)
-    # Join the command arguments into a single string for shell evaluation.
-    args = cmd_args(context.attrs.command, delimiter = " ")
-    # Wrap the shell invocation with hidden artifact references so Buck2 tracks all inputs.
-    hidden = cmd_args(context.attrs.shell, "-c", args, hidden = hidden)
-    # Render the full build command with paths relative to the project root.
-    command = cmd_args(hidden, relative_to = (log, depth))
-    # Persist the command to the log file for reproducibility.
-    context.actions.write(log, command, allow_args = True)
-    # Execute the command as a build action.
+
+    # format environment variables as key=value pairs for the env command
+    # we intentionally do not use actions.run(env = ...): that only affects the build action,
+    # while this rule must apply identical environment behavior to both the build action and
+    # runinfo (`buck2 run`) and keep cwd handling in one explicit command path
+    env = [cmd_args(key, value, delimiter = "=") for key, value in context.attrs.environment.items()]
+
+    # build an `env -C <dir>` prefix that executes from the action directory
+    # `parent = 1` resolves the cwd to the log's parent path
+    cwd = cmd_args("env", "-C", log, parent = 1)
+
+    # compose the final command with cwd prefix, environment assignments, user
+    # command argv, shell wrapper, and hidden artifacts for action-key tracking
+    command = cmd_args(
+        cwd,
+        env,
+        cmd_args(context.attrs.shell, "-c"),
+        cmd_args(context.attrs.command, delimiter = " ", relative_to = (log, 1)),
+        hidden = hidden,
+    )
+
+    # execute the command as a build action, `no_outputs_cleanup` prevents buck2
+    # from deleting undeclared outputs that downstream targets may depend on
     context.actions.run(command, category = "shell", no_outputs_cleanup = True)
-    # Return build outputs (falling back to log) and a RunInfo for `buck2 run` from project root.
-    return [DefaultInfo(default_outputs = outputs or [log]), RunInfo(args = cmd_args(env, context.attrs.shell, "-c", args))]
+
+    # expose declared outputs for the rule target
+    # reusing `command` for runinfo guarantees `buck2 run` executes the exact
+    # same argv/cwd/env semantics as the build action, avoiding drift where run
+    # succeeds/fails differently than build due to command construction mismatch
+    return [DefaultInfo(default_outputs = outputs), RunInfo(args = command)]
 
 shell = rule(
     impl = _shell_impl,
-    doc = "Executes a command via a shell interpreter with optional sources, outputs, dependencies, and environment variables.",
+    doc = "executes a command via a shell interpreter with optional sources, outputs, dependencies, and environment variables",
     attrs = {
         "_log": attrs.string(default = "buck2.log"),
-        "command": attrs.list(attrs.arg(), doc = "The command to execute, joined and passed to the shell as a single string."),
-        "context": attrs.string(default = "./", doc = "The working directory for declared outputs, relative to the package."),
-        "dependencies": attrs.named_set(attrs.dep(), default = [], doc = "Targets whose default outputs are made available to the command."),
-        "environment": attrs.dict(key = attrs.string(), value = attrs.arg(), default = {}, doc = "Environment variables to set when running the command."),
-        "mode": attrs.enum(["copy", "symlink"], default = "copy", doc = "Whether to copy or symlink source files into the build context."),
-        "outputs": attrs.named_set(attrs.string(), default = [], doc = "Output files the command is expected to produce."),
-        "shell": attrs.arg(default = "/bin/sh", doc = "The shell interpreter to use."),
-        "sources": attrs.named_set(attrs.source(), default = [], doc = "Source files made available to the command."),
+        "command": attrs.list(attrs.arg(), doc = "the command to execute, joined and passed to the shell as a single string"),
+        "context": attrs.string(default = "./", doc = "the working directory for declared outputs, relative to the package"),
+        "dependencies": attrs.named_set(attrs.dep(), default = [], doc = "targets whose default outputs are made available to the command"),
+        "environment": attrs.dict(key = attrs.string(), value = attrs.arg(), default = {}, doc = "environment variables to set when running the command"),
+        "mode": attrs.enum(["copy", "symlink"], default = "copy", doc = "whether to copy or symlink source files into the build context"),
+        "outputs": attrs.named_set(attrs.string(), default = [], doc = "optional output files the command is expected to produce"),
+        "shell": attrs.arg(default = "/bin/sh", doc = "the shell interpreter to use"),
+        "sources": attrs.named_set(attrs.source(), default = [], doc = "source files made available to the command"),
     },
 )
