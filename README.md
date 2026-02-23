@@ -14,7 +14,7 @@ To use this prelude in your project, add the following to your `.buckconfig`:
   prelude = git
   git_origin = git@github.com:glacion/buck2-prelude.git
   # Replace with a specific commit hash for reproducibility
-  commit_hash = 61fcb1b
+  commit_hash = <COMMIT_HASH>
 ```
 
 ## Available Rules
