@@ -1,0 +1,37 @@
+write(
+    name = "derived_input",
+    path = "out/derived.txt",
+    content = "derived export source\n",
+)
+
+export(
+    name = "copy_sources",
+    mode = "copy",
+    sources = [
+        ":derived_input",
+        "source.txt",
+    ],
+)
+
+export(
+    name = "symlink_sources",
+    mode = "symlink",
+    sources = [
+        ":derived_input",
+        "source.txt",
+    ],
+)
+
+test(
+    name = "test_copy_sources",
+    context = "out/tests/export_copy_sources",
+    command = ["sh", "-c", "test -f ../../../source.txt && test -f ../../derived.txt"],
+    sources = [":copy_sources"],
+)
+
+test(
+    name = "test_symlink_sources",
+    context = "out/tests/export_symlink_sources",
+    command = ["sh", "-c", "test -f ../../../source.txt && test -f ../../derived.txt"],
+    sources = [":symlink_sources"],
+)

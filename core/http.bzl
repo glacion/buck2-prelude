@@ -15,6 +15,7 @@ def _http_impl(context: AnalysisContext) -> list[Provider]:
     # exposing a default output allows direct dependency and alias aggregation
     return [DefaultInfo(default_output = output)]
 
+# define the public `http` rule wrapper around `_http_impl`
 http = rule(
     impl = _http_impl,
     doc = "downloads a file from a url with integrity verification",

@@ -1,0 +1,164 @@
+load("@prelude//prelude.bzl", "alias", "default", "export", "json", "shell", "test", "write")
+
+write(
+    name = "write",
+    path = "out/write.txt",
+    content = "hello from write rule\n",
+)
+
+write(
+    name = "write_executable",
+    path = "out/run.sh",
+    content = "#!/bin/sh\necho hello\n",
+    executable = True,
+)
+
+json(
+    name = "json",
+    path = "out/data.json",
+    content = {"name": "buck2-prelude", "ok": True},
+    pretty = True,
+)
+
+json(
+    name = "json_compact",
+    path = "out/data.compact.json",
+    content = {"items": [1, 2, 3], "nested": {"ok": True}},
+)
+
+export(
+    name = "export",
+    mode = "copy",
+    sources = ["input.txt"],
+)
+
+export(
+    name = "export_symlink",
+    mode = "symlink",
+    sources = ["input.txt"],
+)
+
+default(
+    name = "default_env",
+    context = "out/default_env",
+    command = ["sh", "-c", "test \"$RULE_ENV\" = \"default\" && touch ok.txt"],
+    sources = [],
+    environment = {"RULE_ENV": "default"},
+    outputs = ["ok.txt"],
+)
+
+default(
+    name = "default_no_outputs",
+    context = "out/default_no_outputs",
+    command = ["sh", "-c", "test \"$RULE_ENV\" = \"default-no-outputs\""],
+    sources = [],
+    environment = {"RULE_ENV": "default-no-outputs"},
+)
+
+shell(
+    name = "shell_env",
+    context = "out/shell_env",
+    command = ["test \"$RULE_ENV\" = \"shell\" && touch ok.txt"],
+    environment = {"RULE_ENV": "shell"},
+    outputs = ["ok.txt"],
+)
+
+shell(
+    name = "shell_no_outputs",
+    context = "out/shell_no_outputs",
+    command = ["test \"$RULE_ENV\" = \"shell-no-outputs\""],
+    environment = {"RULE_ENV": "shell-no-outputs"},
+)
+
+test(
+    name = "test_write_content",
+    context = "out/tests/write_content",
+    command = ["sh", "-c", "grep -qx 'hello from write rule' \"$1\"", "sh", "$(location :write)"],
+    sources = [":write"],
+)
+
+test(
+    name = "test_json_content",
+    context = "out/tests/json_content",
+    command = [
+        "sh",
+        "-c",
+        "grep -q '\"name\": \"buck2-prelude\"' \"$1\" && grep -q '\"ok\": true' \"$1\"",
+        "sh",
+        "$(location :json)",
+    ],
+    sources = [":json"],
+)
+
+test(
+    name = "test_export_matches_input",
+    context = "out/tests/export_matches_input",
+    command = ["sh", "-c", "grep -qx 'hello from export rule' \"$1\"", "sh", "$(location :export)"],
+    sources = [":export"],
+)
+
+test(
+    name = "test_default_output",
+    context = "out/tests/default_output",
+    command = ["sh", "-c", "test -f \"$1\"", "sh", "$(location :default_env)"],
+    sources = [":default_env"],
+)
+
+test(
+    name = "test_default_no_outputs_log",
+    context = "out/tests/default_no_outputs_log",
+    command = ["sh", "-c", "grep -q 'default-no-outputs' \"$1\"", "sh", "$(location :default_no_outputs)"],
+    sources = [":default_no_outputs"],
+)
+
+test(
+    name = "test_shell_output",
+    context = "out/tests/shell_output",
+    command = ["sh", "-c", "test -f \"$1\"", "sh", "$(location :shell_env)"],
+    sources = [":shell_env"],
+)
+
+test(
+    name = "test_shell_no_outputs_log",
+    context = "out/tests/shell_no_outputs_log",
+    command = ["sh", "-c", "grep -q 'shell-no-outputs' \"$1\"", "sh", "$(location :shell_no_outputs)"],
+    sources = [":shell_no_outputs"],
+)
+
+test(
+    name = "test_mixed_sources",
+    context = "out/tests/mixed_sources",
+    command = [
+        "sh",
+        "-c",
+        "grep -qx 'hello from write rule' \"$1\" && grep -q '\"name\": \"buck2-prelude\"' \"$2\" && grep -qx 'hello from raw extra source' ../../../raw-extra.txt",
+        "sh",
+        "$(location :write)",
+        "$(location :json)",
+    ],
+    sources = [":write", ":json", "raw-extra.txt"],
+)
+
+alias(
+    name = "all",
+    actual = [
+        ":write",
+        ":write_executable",
+        ":json",
+        ":json_compact",
+        ":export",
+        ":export_symlink",
+        ":default_env",
+        ":default_no_outputs",
+        ":shell_env",
+        ":shell_no_outputs",
+        ":test_write_content",
+        ":test_json_content",
+        ":test_export_matches_input",
+        ":test_default_output",
+        ":test_default_no_outputs_log",
+        ":test_shell_output",
+        ":test_shell_no_outputs_log",
+        ":test_mixed_sources",
+    ],
+)

@@ -1,0 +1,26 @@
+write(
+    name = "plain_text",
+    path = "out/plain.txt",
+    content = "hello from write plain\n",
+)
+
+write(
+    name = "script_executable",
+    path = "out/tool.sh",
+    content = "#!/bin/sh\nprintf 'hello from write executable\\n'\n",
+    executable = True,
+)
+
+test(
+    name = "test_plain_text",
+    context = "out/tests/write_plain_text",
+    command = ["sh", "-c", "grep -qx 'hello from write plain' \"$1\"", "sh", "$(location :plain_text)"],
+    sources = [":plain_text"],
+)
+
+test(
+    name = "test_script_executable",
+    context = "out/tests/write_script_executable",
+    command = ["sh", "-c", "test -x \"$1\"", "sh", "$(location :script_executable)"],
+    sources = [":script_executable"],
+)

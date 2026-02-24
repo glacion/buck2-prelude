@@ -1,0 +1,60 @@
+write(
+    name = "derived_input",
+    path = "gen/derived.txt",
+    content = "shell derived input\n",
+)
+
+shell(
+    name = "with_outputs_copy",
+    context = "out/shell_copy",
+    command = ["printf 'shell example\\n%s\\n' \"$RULE_ENV\" > out.txt"],
+    environment = {
+        "RULE_ENV": "shell-copy",
+    },
+    mode = "copy",
+    outputs = ["out.txt"],
+    shell = "/bin/sh",
+    sources = [
+        "source.txt",
+        ":derived_input",
+    ],
+)
+
+shell(
+    name = "no_outputs_symlink",
+    _log = "command.log",
+    context = "out/shell_symlink_no_outputs",
+    command = ["test \"$RULE_ENV\" = \"shell-symlink\""],
+    environment = {
+        "RULE_ENV": "shell-symlink",
+    },
+    mode = "symlink",
+    shell = "/bin/sh",
+    sources = ["source.txt"],
+)
+
+test(
+    name = "test_with_outputs_copy",
+    context = "out/tests/shell_with_outputs_copy",
+    command = [
+        "sh",
+        "-c",
+        "grep -q 'shell-copy' \"$1\"",
+        "sh",
+        "$(location :with_outputs_copy)",
+    ],
+    sources = [":with_outputs_copy"],
+)
+
+test(
+    name = "test_no_outputs_symlink",
+    context = "out/tests/shell_no_outputs_symlink",
+    command = [
+        "sh",
+        "-c",
+        "grep -q 'shell-symlink' \"$1\"",
+        "sh",
+        "$(location :no_outputs_symlink)",
+    ],
+    sources = [":no_outputs_symlink"],
+)

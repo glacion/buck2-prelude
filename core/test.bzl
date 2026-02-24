@@ -1,5 +1,6 @@
 """provides the test rule for defining test targets"""
 
+# import normalized path helpers used to scope outputs under package/context
 load("@prelude//core/path.bzl", "path")
 
 def _test_impl(context: AnalysisContext) -> list[Provider]:
@@ -9,14 +10,6 @@ def _test_impl(context: AnalysisContext) -> list[Provider]:
     log = context.actions.declare_output(path.join(context.label.package, context.attrs.context, context.attrs._log))
     # copy favors hermetic materialization, symlink favors faster local iteration
     install = context.actions.copy_file if context.attrs.mode == "copy" else context.actions.symlink_file
-    # gather dependency outputs from defaultinfo for hidden input tracking
-    # `default_outputs` is the supported aggregation surface in this buck2 api
-    # including these artifacts keeps action keys sensitive to dependency changes
-    dependencies = [
-        output
-        for dependency in context.attrs.dependencies
-        for output in dependency[DefaultInfo].default_outputs
-    ]
     # install source files into the test context while preserving layout semantics:
     # - for source files (`is_source = True`), prefix with `context.label.package` so files
     #   keep their package-relative directory structure
@@ -26,11 +19,11 @@ def _test_impl(context: AnalysisContext) -> list[Provider]:
         install(path.join(context.label.package, source.short_path), source) if source.is_source else install(source.short_path, source)
         for source in context.attrs.sources
     ]
-    # bundle dependencies and sources as hidden inputs for the test action
+    # bundle sources as hidden inputs for the test action
     # these must be present in the action key even when not rendered on argv,
-    # otherwise buck2 can miss invalidation when dependencies or sources
+    # otherwise buck2 can miss invalidation when sources
     # change and incorrectly reuse stale results
-    hidden = dependencies + sources
+    hidden = sources
 
     # format environment variables as key=value pairs for the env command
     # we intentionally do not use ExternalRunnerTestInfo(env = ...) alone: that only
@@ -62,14 +55,14 @@ def _test_impl(context: AnalysisContext) -> list[Provider]:
         ),
     ]
 
+# define the public `test` rule wrapper around `_test_impl`
 test = rule(
     impl = _test_impl,
     doc = "defines a test target that runs a command and reports results via the external test runner",
     attrs = {
-        "_log": attrs.string(default = "buck2.log"),
+        "_log": attrs.string(default = "buck2.log", doc = "internal log file name written under package/context"),
         "command": attrs.list(attrs.arg(), doc = "the test command to execute"),
         "context": attrs.string(default = "./", doc = "the working directory for the test, relative to the package"),
-        "dependencies": attrs.named_set(attrs.dep(), default = [], doc = "targets whose default outputs are made available to the test"),
         "environment": attrs.dict(key = attrs.string(), value = attrs.arg(), default = {}, doc = "environment variables to set when running the test"),
         "mode": attrs.enum(["copy", "symlink"], default = "copy", doc = "whether to copy or symlink source files into the test context"),
         "sources": attrs.named_set(attrs.source(), default = [], doc = "source files made available to the test"),

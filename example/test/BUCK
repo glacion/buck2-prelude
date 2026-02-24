@@ -1,0 +1,45 @@
+write(
+    name = "derived_text",
+    path = "out/derived.txt",
+    content = "derived test input\n",
+)
+
+json(
+    name = "derived_json",
+    path = "out/data.json",
+    content = {
+        "kind": "derived",
+        "rule": "test",
+    },
+)
+
+test(
+    name = "mixed_sources_copy",
+    context = "out/tests/mixed_sources_copy",
+    command = [
+        "sh",
+        "-c",
+        "test \"$RULE_MODE\" = \"mixed-sources\"",
+    ],
+    environment = {
+        "RULE_MODE": "mixed-sources",
+    },
+    mode = "copy",
+    sources = [
+        "source.txt",
+        ":derived_text",
+        ":derived_json",
+    ],
+)
+
+test(
+    name = "env_symlink",
+    _log = "run.log",
+    context = "out/tests/env_symlink",
+    command = ["sh", "-c", "test \"$RULE_ENV\" = \"test-symlink\""],
+    environment = {
+        "RULE_ENV": "test-symlink",
+    },
+    mode = "symlink",
+    sources = ["source.txt"],
+)

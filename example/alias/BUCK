@@ -1,0 +1,30 @@
+write(
+    name = "note",
+    path = "out/note.txt",
+    content = "alias example note\n",
+)
+
+json(
+    name = "config",
+    path = "out/config.json",
+    content = {
+        "example": "alias",
+        "enabled": True,
+    },
+    pretty = True,
+)
+
+alias(
+    name = "all_outputs",
+    actual = [
+        ":note",
+        ":config",
+    ],
+)
+
+test(
+    name = "test_all_outputs",
+    context = "out/tests/alias_all_outputs",
+    command = ["sh", "-c", "test -f ../../note.txt && test -f ../../config.json"],
+    sources = [":all_outputs"],
+)

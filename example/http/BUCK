@@ -1,0 +1,13 @@
+http(
+    name = "download_license",
+    output = "downloads/LICENSE.bazel-7.0.0.txt",
+    url = "https://raw.githubusercontent.com/bazelbuild/bazel/7.0.0/LICENSE",
+    sha256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+)
+
+test(
+    name = "test_download_license",
+    context = "out/tests/http_download_license",
+    command = ["sh", "-c", "grep -q 'Apache License' \"$1\"", "sh", "$(location :download_license)"],
+    sources = [":download_license"],
+)

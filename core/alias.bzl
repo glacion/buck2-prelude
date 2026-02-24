@@ -15,6 +15,7 @@ def _alias_impl(context: AnalysisContext) -> list[Provider]:
     # providers, which avoids ambiguous run semantics for multi-dependency aliases
     return [DefaultInfo(default_outputs = outputs)]
 
+# define the public `alias` rule wrapper around `_alias_impl`
 alias = rule(
     impl = _alias_impl,
     doc = "creates a target that aggregates the default outputs of its dependencies",

@@ -1,5 +1,6 @@
 """provides the write rule for writing content to a file"""
 
+# import normalized path helpers used to scope outputs under package-relative locations
 load("@prelude//core/path.bzl", "path")
 
 def _write_impl(context: AnalysisContext) -> list[Provider]:
@@ -15,6 +16,7 @@ def _write_impl(context: AnalysisContext) -> list[Provider]:
     # downstream rules can consume this artifact via normal default output wiring
     return [DefaultInfo(default_output = output)]
 
+# define the public `write` rule wrapper around `_write_impl`
 write = rule(
     impl = _write_impl,
     doc = "writes content to a file",

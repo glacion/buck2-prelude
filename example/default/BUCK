@@ -1,0 +1,66 @@
+write(
+    name = "derived_input",
+    path = "gen/derived.txt",
+    content = "default derived input\n",
+)
+
+default(
+    name = "with_outputs_copy",
+    context = "out/default_copy",
+    command = [
+        "sh",
+        "-c",
+        "printf 'default example\\n%s\\n' \"$RULE_ENV\" > out.txt",
+    ],
+    environment = {
+        "RULE_ENV": "default-copy",
+    },
+    mode = "copy",
+    outputs = ["out.txt"],
+    sources = [
+        "source.txt",
+        ":derived_input",
+    ],
+)
+
+default(
+    name = "no_outputs_symlink",
+    _log = "command.log",
+    context = "out/default_symlink_no_outputs",
+    command = [
+        "sh",
+        "-c",
+        "test \"$RULE_ENV\" = \"default-symlink\"",
+    ],
+    environment = {
+        "RULE_ENV": "default-symlink",
+    },
+    mode = "symlink",
+    sources = ["source.txt"],
+)
+
+test(
+    name = "test_with_outputs_copy",
+    context = "out/tests/default_with_outputs_copy",
+    command = [
+        "sh",
+        "-c",
+        "grep -q 'default-copy' \"$1\"",
+        "sh",
+        "$(location :with_outputs_copy)",
+    ],
+    sources = [":with_outputs_copy"],
+)
+
+test(
+    name = "test_no_outputs_symlink",
+    context = "out/tests/default_no_outputs_symlink",
+    command = [
+        "sh",
+        "-c",
+        "grep -q 'default-symlink' \"$1\"",
+        "sh",
+        "$(location :no_outputs_symlink)",
+    ],
+    sources = [":no_outputs_symlink"],
+)

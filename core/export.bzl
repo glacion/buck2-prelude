@@ -1,5 +1,6 @@
 """provides the export rule for copying or symlinking source files"""
 
+# import normalized path helpers used to preserve package-relative source layouts
 load("@prelude//core/path.bzl", "path")
 
 def _export_impl(context: AnalysisContext) -> list[Provider]:
@@ -18,6 +19,7 @@ def _export_impl(context: AnalysisContext) -> list[Provider]:
     # return defaultinfo exposing exported artifacts as default outputs
     return [DefaultInfo(default_outputs = sources)]
 
+# define the public `export` rule wrapper around `_export_impl`
 export = rule(
     impl = _export_impl,
     doc = "copies or symlinks source files into the build output",

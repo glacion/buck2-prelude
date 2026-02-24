@@ -8,8 +8,6 @@ path separators (forward slash, "/"); they do not handle Windows-style paths
 with backslash separators or drive letters.
 """
 
-
-
 def _basename(p: str) -> str:
     """Returns the basename (i.e., the file portion) of a path.
 

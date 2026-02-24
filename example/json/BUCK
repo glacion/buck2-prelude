@@ -1,0 +1,34 @@
+json(
+    name = "compact",
+    path = "out/compact.json",
+    content = {
+        "rule": "json",
+        "pretty": False,
+        "items": [1, 2, 3],
+    },
+)
+
+json(
+    name = "pretty",
+    path = "out/pretty.json",
+    content = {
+        "rule": "json",
+        "pretty": True,
+        "nested": {"k": "v"},
+    },
+    pretty = True,
+)
+
+test(
+    name = "test_compact",
+    context = "out/tests/json_compact",
+    command = ["sh", "-c", "grep -q '\"pretty\":false' \"$1\"", "sh", "$(location :compact)"],
+    sources = [":compact"],
+)
+
+test(
+    name = "test_pretty",
+    context = "out/tests/json_pretty",
+    command = ["sh", "-c", "grep -q '\"nested\"' \"$1\"", "sh", "$(location :pretty)"],
+    sources = [":pretty"],
+)

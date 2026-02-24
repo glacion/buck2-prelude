@@ -1,5 +1,6 @@
 """provides the json rule for writing json files"""
 
+# import normalized path helpers used to scope outputs under package-relative locations
 load("@prelude//core/path.bzl", "path")
 
 def _json_impl(context: AnalysisContext) -> list[Provider]:
@@ -15,6 +16,7 @@ def _json_impl(context: AnalysisContext) -> list[Provider]:
     # this makes the generated json directly consumable by downstream rules
     return [DefaultInfo(default_output = output)]
 
+# define the public `json` rule wrapper around `_json_impl`
 json = rule(
     impl = _json_impl,
     doc = "writes a json value to a file",

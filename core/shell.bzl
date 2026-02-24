@@ -1,24 +1,16 @@
 """provides the shell rule for executing commands via a shell interpreter"""
 
+# import normalized path helpers used to scope outputs under package/context
 load("@prelude//core/path.bzl", "path")
 
 def _shell_impl(context: AnalysisContext) -> list[Provider]:
     # declare the log artifact for cwd resolution by `env -C`, scoping it under
     # `package/context/_log` via `path.join` to normalize separators and collapse
     # redundant components (e.g. `./`); inlined since shell does not reuse the path
-    log = context.actions.declare_output(path.join(context.label.package, context.attrs.context, context.attrs._log)).as_output()
+    log = context.actions.declare_output(path.join(context.label.package, context.attrs.context, context.attrs._log))
 
     # select the file installation strategy based on the mode attribute
     install = context.actions.copy_file if context.attrs.mode == "copy" else context.actions.symlink_file
-
-    # gather dependency outputs from defaultinfo for hidden input tracking
-    # `default_outputs` is the supported aggregation surface in this buck2 api
-    # including these artifacts keeps action keys sensitive to dependency changes
-    dependencies = [
-        output
-        for dependency in context.attrs.dependencies
-        for output in dependency[DefaultInfo].default_outputs
-    ]
 
     # declare output artifacts for each expected output file
     # `path.join(package, context, output)` keeps outputs scoped under the
@@ -39,11 +31,11 @@ def _shell_impl(context: AnalysisContext) -> list[Provider]:
         for source in context.attrs.sources
     ]
 
-    # bundle dependencies, sources, and output declarations as hidden inputs
+    # bundle sources and output declarations as hidden inputs
     # these must be present in the action key even when not rendered on argv,
-    # otherwise buck2 can miss invalidation when dependencies, sources, or
+    # otherwise buck2 can miss invalidation when sources or
     # declared outputs change and incorrectly reuse stale results
-    hidden = dependencies + sources + [output.as_output() for output in outputs]
+    hidden = sources + [output.as_output() for output in outputs]
 
     # format environment variables as key=value pairs for the env command
     # we intentionally do not use actions.run(env = ...): that only affects the build action,
@@ -53,7 +45,7 @@ def _shell_impl(context: AnalysisContext) -> list[Provider]:
 
     # build an `env -C <dir>` prefix that executes from the action directory
     # `parent = 1` resolves the cwd to the log's parent path
-    cwd = cmd_args("env", "-C", log, parent = 1)
+    cwd = cmd_args("env", "--chdir", log, parent = 1)
 
     # compose the final command with cwd prefix, environment assignments, user
     # command argv, shell wrapper, and hidden artifacts for action-key tracking
@@ -65,24 +57,27 @@ def _shell_impl(context: AnalysisContext) -> list[Provider]:
         hidden = hidden,
     )
 
-    # execute the command as a build action, `no_outputs_cleanup` prevents buck2
-    # from deleting undeclared outputs that downstream targets may depend on
-    context.actions.run(command, category = "shell", no_outputs_cleanup = True)
+    # materialize the assembled command into the log artifact so the exact argv
+    # and expansion are inspectable after execution
+    context.actions.write(log, command, allow_args = True)
+    if outputs:
+        # when explicit outputs are declared, execute the command as a producing
+        # build action and preserve outputs for downstream/default propagation
+        context.actions.run(command, category = "command", no_outputs_cleanup = True)
+        return [DefaultInfo(default_outputs = outputs), RunInfo(args = command)]
+    else:
+        # when no outputs are declared, expose the log as the default artifact so
+        # callers still receive deterministic command materialization
+        return [DefaultInfo(default_output = log), RunInfo(args = command)]
 
-    # expose declared outputs for the rule target
-    # reusing `command` for runinfo guarantees `buck2 run` executes the exact
-    # same argv/cwd/env semantics as the build action, avoiding drift where run
-    # succeeds/fails differently than build due to command construction mismatch
-    return [DefaultInfo(default_outputs = outputs), RunInfo(args = command)]
-
+# define the public `shell` rule wrapper around `_shell_impl`
 shell = rule(
     impl = _shell_impl,
-    doc = "executes a command via a shell interpreter with optional sources, outputs, dependencies, and environment variables",
+    doc = "executes a command via a shell interpreter with optional sources, outputs, and environment variables",
     attrs = {
-        "_log": attrs.string(default = "buck2.log"),
+        "_log": attrs.string(default = "buck2.log", doc = "internal log file name written under package/context"),
         "command": attrs.list(attrs.arg(), doc = "the command to execute, joined and passed to the shell as a single string"),
         "context": attrs.string(default = "./", doc = "the working directory for declared outputs, relative to the package"),
-        "dependencies": attrs.named_set(attrs.dep(), default = [], doc = "targets whose default outputs are made available to the command"),
         "environment": attrs.dict(key = attrs.string(), value = attrs.arg(), default = {}, doc = "environment variables to set when running the command"),
         "mode": attrs.enum(["copy", "symlink"], default = "copy", doc = "whether to copy or symlink source files into the build context"),
         "outputs": attrs.named_set(attrs.string(), default = [], doc = "optional output files the command is expected to produce"),
